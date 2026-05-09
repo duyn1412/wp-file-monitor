@@ -194,13 +194,19 @@ class WPFM_Notifier {
      * Send email notification.
      */
     private function send_email( $subject, $body ) {
-        $to = $this->settings['email'] ?? get_option( 'admin_email' );
-        if ( empty( $to ) ) {
+        $emails = $this->settings['email'] ?? get_option( 'admin_email' );
+        if ( empty( $emails ) ) {
+            return false;
+        }
+
+        // Support comma-separated multiple emails
+        $recipients = array_filter( array_map( 'trim', explode( ',', $emails ) ) );
+        if ( empty( $recipients ) ) {
             return false;
         }
 
         $headers = [ 'Content-Type: text/plain; charset=UTF-8' ];
-        return wp_mail( $to, $subject, $body, $headers );
+        return wp_mail( $recipients, $subject, $body, $headers );
     }
 
     /**

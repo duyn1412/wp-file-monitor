@@ -151,4 +151,39 @@
         $result.html(html).show();
     }
 
+    // Test Email
+    $('#wpfm-test-email').on('click', function () {
+        var $btn = $(this);
+        var $msg2 = $('#wpfm-test-email-msg');
+        $btn.prop('disabled', true);
+        $msg2.text('Sending…').css('color', '#666');
+
+        $.post(wpfm.ajax_url, {
+            action: 'wpfm_test_email',
+            nonce: wpfm.nonce
+        })
+        .done(function (res) {
+            if (res.success) {
+                $msg2.text('✅ ' + res.data.message).css('color', '#00a32a');
+            } else {
+                $msg2.text('❌ ' + (res.data.message || 'Failed')).css('color', '#d63638');
+            }
+        })
+        .fail(function () {
+            $msg2.text('❌ Request failed').css('color', '#d63638');
+        })
+        .always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
+
+    // Toggle Scan History Details
+    $(document).on('click', '.wpfm-toggle-details', function (e) {
+        e.preventDefault();
+        var target = $(this).data('target');
+        var $row = $('#' + target);
+        $row.toggle();
+        $(this).text($row.is(':visible') ? 'Hide ▴' : 'View ▾');
+    });
+
 })(jQuery);

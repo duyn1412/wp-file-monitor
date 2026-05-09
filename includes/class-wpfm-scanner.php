@@ -159,7 +159,7 @@ class WPFM_Scanner {
 
         // Append to scan log (keep last 100)
         $log   = get_option( 'wpfm_scan_log', [] );
-        $log[] = [
+        $entry = [
             'time'       => current_time( 'mysql' ),
             'files'      => count( $new_snapshot ),
             'changes'    => $total_changes,
@@ -169,6 +169,23 @@ class WPFM_Scanner {
             'deleted'    => count( $content_changes['deleted_files'] ),
             'suspicious' => count( $suspicious ),
         ];
+
+        // Store file paths for "View Details" (limit 20 per category to keep size small)
+        if ( $total_changes > 0 || count( $suspicious ) > 0 ) {
+            $entry['detail_files'] = [
+                'new'        => array_slice( array_column( $content_changes['new_files'], 'path' ), 0, 20 ),
+                'modified'   => array_slice( array_column( $content_changes['modified_files'], 'path' ), 0, 20 ),
+                'deleted'    => array_slice( array_column( $content_changes['deleted_files'], 'path' ), 0, 20 ),
+                'core'       => array_slice( array_merge(
+                    array_column( $core_result['modified'] ?? [], 'path' ),
+                    array_column( $core_result['unknown'] ?? [], 'path' ),
+                    array_column( $core_result['missing'] ?? [], 'path' )
+                ), 0, 20 ),
+                'suspicious' => array_slice( array_column( $suspicious, 'path' ), 0, 20 ),
+            ];
+        }
+
+        $log[] = $entry;
         if ( count( $log ) > 100 ) {
             $log = array_slice( $log, -100 );
         }

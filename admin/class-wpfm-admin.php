@@ -18,6 +18,7 @@ class WPFM_Admin {
         add_action( 'admin_enqueue_scripts', [ __CLASS__, 'enqueue_assets' ] );
         add_action( 'wp_ajax_wpfm_run_scan', [ __CLASS__, 'ajax_run_scan' ] );
         add_action( 'wp_ajax_wpfm_reset_snapshot', [ __CLASS__, 'ajax_reset_snapshot' ] );
+        add_action( 'wp_ajax_wpfm_test_email', [ __CLASS__, 'ajax_test_email' ] );
 
         // Add action link on Plugins page
         add_filter( 'plugin_action_links_' . WPFM_BASENAME, [ __CLASS__, 'action_links' ] );
@@ -154,6 +155,46 @@ class WPFM_Admin {
         WPFM_Core_Verify::clear_cache();
 
         wp_send_json_success( [ 'message' => 'Snapshot & core cache reset. Next scan will create a new baseline.' ] );
+    }
+
+    /**
+     * AJAX: Send test email.
+     */
+    public static function ajax_test_email() {
+        check_ajax_referer( 'wpfm_nonce', 'nonce' );
+
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( 'Unauthorized' );
+        }
+
+        $settings = get_option( 'wpfm_settings', [] );
+        $emails   = $settings['email'] ?? get_option( 'admin_email' );
+
+        // Parse comma-separated emails
+        $recipients = array_filter( array_map( 'trim', explode( ',', $emails ) ) );
+
+        if ( empty( $recipients ) ) {
+            wp_send_json_error( [ 'message' => 'No email configured.' ] );
+        }
+
+        $subject = '[WP File Monitor] ✅ Test Email — ' . get_bloginfo( 'name' );
+        $body    = "This is a test email from WP File Monitor.\n\n";
+        $body   .= "Site: " . home_url() . "\n";
+        $body   .= "Time: " . current_time( 'mysql' ) . "\n\n";
+        $body   .= "If you received this, email alerts are working!\n";
+        $body   .= "Recipients: " . implode( ', ', $recipients ) . "\n";
+
+        $sent = wp_mail( $recipients, $subject, $body );
+
+        if ( $sent ) {
+            wp_send_json_success( [
+                'message' => 'Test email sent to: ' . implode( ', ', $recipients ),
+            ] );
+        } else {
+            wp_send_json_error( [
+                'message' => 'Email failed. Check your WordPress mail configuration.',
+            ] );
+        }
     }
 
     /**
@@ -420,11 +461,18 @@ class WPFM_Admin {
 
                 <table class="form-table">
                     <tr>
-                        <th><?php _e( 'Alert Email', 'wp-file-monitor' ); ?></th>
+                        <th><?php _e( 'Alert Email(s)', 'wp-file-monitor' ); ?></th>
                         <td>
-                            <input type="email" name="wpfm_settings[email]"
+                            <input type="text" name="wpfm_settings[email]"
                                    value="<?php echo esc_attr( $settings['email'] ?? '' ); ?>"
-                                   class="regular-text" />
+                                   class="regular-text"
+                                   placeholder="admin@site.com, dev@site.com" />
+                            <p class="description"><?php _e( 'Comma-separated for multiple recipients.', 'wp-file-monitor' ); ?></p>
+                            <button type="button" id="wpfm-test-email" class="button button-secondary" style="margin-top:6px">
+                                <span class="dashicons dashicons-email" style="margin-top:4px"></span>
+                                <?php _e( 'Send Test Email', 'wp-file-monitor' ); ?>
+                            </button>
+                            <span id="wpfm-test-email-msg" style="margin-left:8px"></span>
                         </td>
                     </tr>
                     <tr>
@@ -567,10 +615,11 @@ class WPFM_Admin {
                             <th><?php _e( 'Deleted', 'wp-file-monitor' ); ?></th>
                             <th><?php _e( 'Suspicious', 'wp-file-monitor' ); ?></th>
                             <th><?php _e( 'Total', 'wp-file-monitor' ); ?></th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ( array_reverse( $scan_log ) as $entry ) : ?>
+                        <?php foreach ( array_reverse( $scan_log ) as $idx => $entry ) : ?>
                             <?php
                             $row_class = '';
                             if ( ( $entry['suspicious'] ?? 0 ) > 0 ) {
@@ -578,6 +627,8 @@ class WPFM_Admin {
                             } elseif ( ( $entry['changes'] ?? 0 ) > 0 ) {
                                 $row_class = 'wpfm-row--alert';
                             }
+                            $has_details = ! empty( $entry['detail_files'] );
+                            $total = $entry['changes'] ?? 0;
                             ?>
                             <tr class="<?php echo esc_attr( $row_class ); ?>">
                                 <td><?php echo esc_html( $entry['time'] ); ?></td>
@@ -593,8 +644,54 @@ class WPFM_Admin {
                                         0
                                     <?php endif; ?>
                                 </td>
-                                <td><strong><?php echo esc_html( $entry['changes'] ); ?></strong></td>
+                                <td><strong><?php echo esc_html( $total ); ?></strong></td>
+                                <td>
+                                    <?php if ( $has_details && $total > 0 ) : ?>
+                                        <a href="#" class="wpfm-toggle-details" data-target="wpfm-detail-<?php echo $idx; ?>">
+                                            <?php _e( 'View', 'wp-file-monitor' ); ?> ▾
+                                        </a>
+                                    <?php endif; ?>
+                                </td>
                             </tr>
+                            <?php if ( $has_details && $total > 0 ) : ?>
+                            <tr id="wpfm-detail-<?php echo $idx; ?>" class="wpfm-detail-row" style="display:none">
+                                <td colspan="9">
+                                    <div class="wpfm-detail-content">
+                                    <?php $df = $entry['detail_files']; ?>
+                                    <?php if ( ! empty( $df['new'] ) ) : ?>
+                                        <strong>🆕 New:</strong><br>
+                                        <?php foreach ( $df['new'] as $f ) : ?>
+                                            <code><?php echo esc_html( $f ); ?></code><br>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                    <?php if ( ! empty( $df['modified'] ) ) : ?>
+                                        <strong>✏️ Modified:</strong><br>
+                                        <?php foreach ( $df['modified'] as $f ) : ?>
+                                            <code><?php echo esc_html( $f ); ?></code><br>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                    <?php if ( ! empty( $df['deleted'] ) ) : ?>
+                                        <strong>🗑 Deleted:</strong><br>
+                                        <?php foreach ( $df['deleted'] as $f ) : ?>
+                                            <code><?php echo esc_html( $f ); ?></code><br>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                    <?php if ( ! empty( $df['core'] ) ) : ?>
+                                        <strong>🔒 Core issues:</strong><br>
+                                        <?php foreach ( $df['core'] as $f ) : ?>
+                                            <code><?php echo esc_html( $f ); ?></code><br>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                    <?php if ( ! empty( $df['suspicious'] ) ) : ?>
+                                        <strong>🚨 Suspicious:</strong><br>
+                                        <?php foreach ( $df['suspicious'] as $f ) : ?>
+                                            <code style="color:#d63638"><?php echo esc_html( $f ); ?></code><br>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endif; ?>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
