@@ -57,6 +57,19 @@ class WPFM_Core_Verify {
         $result['total'] = count( $checksums );
         $abspath         = untrailingslashit( ABSPATH );
 
+        // Filter out wp-content files from checksums — we monitor wp-content
+        // separately via snapshot. The API includes bundled themes/plugins
+        // (twentytwentythree, etc.) which creates false positives.
+        $core_checksums = [];
+        foreach ( $checksums as $rel_path => $hash ) {
+            if ( strpos( $rel_path, 'wp-content/' ) === 0 ) {
+                continue;
+            }
+            $core_checksums[ $rel_path ] = $hash;
+        }
+        $checksums = $core_checksums;
+        $result['total'] = count( $checksums );
+
         // 1. Compare each official file against disk
         foreach ( $checksums as $rel_path => $official_hash ) {
             // Only check PHP files (per user requirement)
