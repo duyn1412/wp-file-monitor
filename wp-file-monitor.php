@@ -28,6 +28,7 @@ require_once WPFM_DIR . 'includes/class-wpfm-scanner.php';
 require_once WPFM_DIR . 'includes/class-wpfm-core-verify.php';
 require_once WPFM_DIR . 'includes/class-wpfm-notifier.php';
 require_once WPFM_DIR . 'includes/class-wpfm-heartbeat.php';
+require_once WPFM_DIR . 'includes/class-wpfm-sentinel.php';
 require_once WPFM_DIR . 'includes/class-wpfm-cron.php';
 
 if ( is_admin() ) {
@@ -52,6 +53,12 @@ final class WP_File_Monitor {
         // Initialize cron
         WPFM_Cron::init();
 
+        // Real-time file change detection
+        WPFM_Sentinel::init();
+
+        // Handle sentinel-triggered scan
+        add_action( 'wpfm_sentinel_scan', [ $this, 'run_scan' ] );
+
         // Admin UI
         if ( is_admin() ) {
             WPFM_Admin::init();
@@ -59,6 +66,14 @@ final class WP_File_Monitor {
 
         // REST API for remote status
         add_action( 'rest_api_init', [ $this, 'register_rest_routes' ] );
+    }
+
+    /**
+     * Run a full scan — used by sentinel triggers and cron.
+     */
+    public function run_scan() {
+        $scanner = new WPFM_Scanner();
+        $scanner->run();
     }
 
     /**
