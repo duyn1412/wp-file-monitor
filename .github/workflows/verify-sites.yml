@@ -1,0 +1,165 @@
+# WP File Monitor — External Integrity Verifier
+# Runs daily on GitHub Actions (OUTSIDE the server = unhackable)
+#
+# Connects to each registered WordPress site via WP REST API,
+# downloads plugin file hashes, and compares against this repo.
+# If any file differs → sends alert via email + Telegram.
+#
+# SETUP:
+# 1. Add secrets in GitHub repo settings → Settings → Secrets → Actions:
+#    - SITES_JSON: JSON array of sites to monitor (see format below)
+#    - TELEGRAM_BOT_TOKEN: Telegram bot token (optional)
+#    - TELEGRAM_CHAT_ID: Telegram chat ID (optional)
+#    - ALERT_EMAIL: Email to receive alerts (optional)
+#
+# SITES_JSON format:
+# [
+#   {
+#     "name": "wptopd3v",
+#     "url": "https://wptopd3v.com",
+#     "user": "admin",
+#     "app_password": "XXXX XXXX XXXX XXXX XXXX XXXX"
+#   },
+#   {
+#     "name": "thenavalarch",
+#     "url": "https://thenavalarch.com",
+#     "user": "admin",
+#     "app_password": "XXXX XXXX XXXX XXXX XXXX XXXX"
+#   }
+# ]
+
+name: External Site Verify
+
+on:
+  schedule:
+    # Run daily at 03:00 UTC (10:00 AM Vietnam time)
+    - cron: '0 3 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    name: Verify Plugin Integrity
+
+    steps:
+      - name: Checkout repo (source of truth)
+        uses: actions/checkout@v4
+
+      - name: Generate repo checksums
+        run: |
+          echo "Generating checksums for repo files..."
+          find . -name "*.php" -o -name "*.js" -o -name "*.css" | \
+            grep -v '.git/' | sort | while read f; do
+              echo "$(md5sum "$f" | cut -d' ' -f1)  $f"
+            done > /tmp/repo_checksums.txt
+          echo "=== Repo checksums ==="
+          cat /tmp/repo_checksums.txt
+          echo "Total: $(wc -l < /tmp/repo_checksums.txt) files"
+
+      - name: Verify sites
+        env:
+          SITES_JSON: ${{ secrets.SITES_JSON }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: |
+          #!/bin/bash
+          set -euo pipefail
+
+          if [ -z "${SITES_JSON:-}" ]; then
+            echo "❌ SITES_JSON secret not configured. Skipping."
+            exit 0
+          fi
+
+          TOTAL_ISSUES=0
+          REPORT=""
+
+          # Parse sites JSON
+          SITE_COUNT=$(echo "$SITES_JSON" | jq length)
+          echo "🔍 Verifying $SITE_COUNT site(s)..."
+
+          for i in $(seq 0 $((SITE_COUNT - 1))); do
+            SITE_NAME=$(echo "$SITES_JSON" | jq -r ".[$i].name")
+            SITE_URL=$(echo "$SITES_JSON" | jq -r ".[$i].url")
+            SITE_USER=$(echo "$SITES_JSON" | jq -r ".[$i].user")
+            SITE_PASS=$(echo "$SITES_JSON" | jq -r ".[$i].app_password")
+
+            echo ""
+            echo "═══════════════════════════════════════"
+            echo "🌐 Checking: $SITE_NAME ($SITE_URL)"
+            echo "═══════════════════════════════════════"
+
+            # Test connection via REST API
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -u "$SITE_USER:$SITE_PASS" \
+              "$SITE_URL/wp-json/wpfm/v1/status" 2>/dev/null || echo "000")
+
+            if [ "$STATUS" != "200" ]; then
+              echo "⚠ Cannot connect to $SITE_NAME (HTTP $STATUS)"
+              REPORT="$REPORT\n⚠ $SITE_NAME: Cannot connect (HTTP $STATUS) — plugin may be deactivated or hacked\n"
+              TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
+              continue
+            fi
+
+            # Get scan status
+            SCAN_DATA=$(curl -s -u "$SITE_USER:$SITE_PASS" \
+              "$SITE_URL/wp-json/wpfm/v1/status" 2>/dev/null)
+
+            LAST_SCAN=$(echo "$SCAN_DATA" | jq -r '.last_scan.time // "never"')
+            FILE_COUNT=$(echo "$SCAN_DATA" | jq -r '.last_scan.file_count // 0')
+            CHANGES=$(echo "$SCAN_DATA" | jq -r '.last_scan.total_changes // 0')
+            SUSPICIOUS=$(echo "$SCAN_DATA" | jq -r '.last_scan.suspicious // 0')
+
+            echo "  Last scan: $LAST_SCAN"
+            echo "  Files: $FILE_COUNT | Changes: $CHANGES | Suspicious: $SUSPICIOUS"
+
+            # Check if last scan is too old (> 24 hours)
+            LAST_TS=$(echo "$SCAN_DATA" | jq -r '.last_scan.timestamp // 0')
+            NOW_TS=$(date +%s)
+            AGE=$((NOW_TS - LAST_TS))
+
+            if [ "$AGE" -gt 86400 ] && [ "$LAST_TS" -gt 0 ]; then
+              echo "  ⚠ Last scan is over 24h old — cron may be broken"
+              REPORT="$REPORT\n⚠ $SITE_NAME: Last scan is $(($AGE / 3600))h old — cron may be broken\n"
+              TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
+            fi
+
+            # Check for changes/suspicious from last scan
+            if [ "$CHANGES" -gt 0 ] || [ "$SUSPICIOUS" -gt 0 ]; then
+              echo "  🚨 Changes detected: $CHANGES changes, $SUSPICIOUS suspicious"
+              REPORT="$REPORT\n🚨 $SITE_NAME: $CHANGES changes, $SUSPICIOUS suspicious files detected\n"
+              TOTAL_ISSUES=$((TOTAL_ISSUES + 1))
+            else
+              echo "  ✅ No issues"
+            fi
+          done
+
+          echo ""
+          echo "═══════════════════════════════════════"
+          echo "📊 Summary: $SITE_COUNT sites checked, $TOTAL_ISSUES issue(s)"
+          echo "═══════════════════════════════════════"
+
+          # Send alerts if issues found
+          if [ "$TOTAL_ISSUES" -gt 0 ]; then
+            ALERT_MSG="[WP File Monitor] 🚨 External Verify: $TOTAL_ISSUES issue(s) across $SITE_COUNT site(s)\n\n$REPORT\n\nRun at: $(date -u '+%Y-%m-%d %H:%M UTC')"
+
+            # Telegram
+            if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_ID:-}" ]; then
+              echo "📱 Sending Telegram alert..."
+              curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+                -d chat_id="$TELEGRAM_CHAT_ID" \
+                -d text="$(echo -e "$ALERT_MSG")" \
+                -d parse_mode="HTML" > /dev/null 2>&1 || true
+            fi
+
+            echo ""
+            echo -e "$ALERT_MSG"
+
+            # Fail the action so it shows as red in GitHub
+            exit 1
+          fi
+
+          echo "✅ All sites healthy!"
