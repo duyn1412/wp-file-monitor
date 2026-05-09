@@ -180,6 +180,9 @@ class WPFM_Scanner {
             $notifier->send( $result );
         }
 
+        // Send heartbeat to Hub API (if configured)
+        WPFM_Heartbeat::send( $result );
+
         return $result;
     }
 

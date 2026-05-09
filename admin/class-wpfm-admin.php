@@ -88,6 +88,18 @@ class WPFM_Admin {
             WPFM_Core_Verify::clear_cache();
         }
 
+        // Hub connection
+        $clean['hub_url']      = esc_url_raw( $input['hub_url'] ?? '' );
+        $clean['hub_site_key'] = sanitize_text_field( $input['hub_site_key'] ?? '' );
+
+        // Auto-register with Hub if URL is new and no site_key yet
+        if ( ! empty( $clean['hub_url'] ) && empty( $clean['hub_site_key'] ) ) {
+            $registered_key = WPFM_Heartbeat::register( $clean['hub_url'] );
+            if ( $registered_key ) {
+                $clean['hub_site_key'] = $registered_key;
+            }
+        }
+
         return $clean;
     }
 
@@ -489,6 +501,35 @@ class WPFM_Admin {
                             <input type="text" name="wpfm_settings[telegram_chat_id]"
                                    value="<?php echo esc_attr( $settings['telegram_chat_id'] ?? '' ); ?>"
                                    class="regular-text" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <th colspan="2"><hr><h3 style="margin:0"><?php _e( '🔗 Hub Connection (Pro)', 'wp-file-monitor' ); ?></h3></th>
+                    </tr>
+                    <tr>
+                        <th><?php _e( 'Hub URL', 'wp-file-monitor' ); ?></th>
+                        <td>
+                            <input type="url" name="wpfm_settings[hub_url]"
+                                   value="<?php echo esc_attr( $settings['hub_url'] ?? '' ); ?>"
+                                   class="regular-text"
+                                   placeholder="https://wptopd3v.com" />
+                            <p class="description"><?php _e( 'URL of the central monitoring hub. Leave empty to disable.', 'wp-file-monitor' ); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?php _e( 'Site Key', 'wp-file-monitor' ); ?></th>
+                        <td>
+                            <?php $site_key = $settings['hub_site_key'] ?? ''; ?>
+                            <?php if ( $site_key ) : ?>
+                                <code style="padding:6px 12px;background:#edfaef;border-radius:4px">
+                                    ✅ <?php echo esc_html( substr( $site_key, 0, 8 ) . '…' . substr( $site_key, -4 ) ); ?>
+                                </code>
+                                <p class="description"><?php _e( 'Connected. Heartbeats are sent after each scan.', 'wp-file-monitor' ); ?></p>
+                            <?php else : ?>
+                                <span style="color:#888"><?php _e( 'Not registered. Enter Hub URL and save to auto-register.', 'wp-file-monitor' ); ?></span>
+                            <?php endif; ?>
+                            <input type="hidden" name="wpfm_settings[hub_site_key]"
+                                   value="<?php echo esc_attr( $site_key ); ?>" />
                         </td>
                     </tr>
                 </table>

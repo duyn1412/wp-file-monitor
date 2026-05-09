@@ -27,6 +27,7 @@ define( 'WPFM_BASENAME', plugin_basename( __FILE__ ) );
 require_once WPFM_DIR . 'includes/class-wpfm-scanner.php';
 require_once WPFM_DIR . 'includes/class-wpfm-core-verify.php';
 require_once WPFM_DIR . 'includes/class-wpfm-notifier.php';
+require_once WPFM_DIR . 'includes/class-wpfm-heartbeat.php';
 require_once WPFM_DIR . 'includes/class-wpfm-cron.php';
 
 if ( is_admin() ) {
