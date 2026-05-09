@@ -3,7 +3,7 @@
  * Plugin Name: WP File Monitor
  * Plugin URI:  https://wptopd3v.com/vibe-plugins/
  * Description: File integrity monitoring for WordPress — detects modified, new, and deleted files. Sends email & Telegram alerts.
- * Version:     1.0.0
+ * Version:     1.1.0
  * Author:      Duy Nguyen
  * Author URI:  https://wptopd3v.com
  * License:     GPLv2 or later
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants
-define( 'WPFM_VERSION', '1.0.0' );
+define( 'WPFM_VERSION', '1.1.0' );
 define( 'WPFM_FILE', __FILE__ );
 define( 'WPFM_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPFM_URL', plugin_dir_url( __FILE__ ) );
