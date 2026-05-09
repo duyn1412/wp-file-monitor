@@ -89,12 +89,16 @@ class WPFM_Admin {
         }
 
         // Hub connection
-        $clean['hub_url']      = esc_url_raw( $input['hub_url'] ?? '' );
-        $clean['hub_site_key'] = sanitize_text_field( $input['hub_site_key'] ?? '' );
+        $clean['hub_url']         = esc_url_raw( $input['hub_url'] ?? '' );
+        $clean['hub_license_key'] = sanitize_text_field( $input['hub_license_key'] ?? '' );
+        $clean['hub_site_key']    = sanitize_text_field( $input['hub_site_key'] ?? '' );
 
-        // Auto-register with Hub if URL is new and no site_key yet
-        if ( ! empty( $clean['hub_url'] ) && empty( $clean['hub_site_key'] ) ) {
-            $registered_key = WPFM_Heartbeat::register( $clean['hub_url'] );
+        // Auto-register with Hub if URL provided and no site_key yet (or license key changed)
+        $old_license = $old['hub_license_key'] ?? '';
+        if ( ! empty( $clean['hub_url'] ) &&
+             ( empty( $clean['hub_site_key'] ) || $clean['hub_license_key'] !== $old_license )
+        ) {
+            $registered_key = WPFM_Heartbeat::register( $clean['hub_url'], $clean['hub_license_key'] );
             if ( $registered_key ) {
                 $clean['hub_site_key'] = $registered_key;
             }
@@ -514,6 +518,16 @@ class WPFM_Admin {
                                    class="regular-text"
                                    placeholder="https://wptopd3v.com" />
                             <p class="description"><?php _e( 'URL of the central monitoring hub. Leave empty to disable.', 'wp-file-monitor' ); ?></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th><?php _e( 'License Key', 'wp-file-monitor' ); ?></th>
+                        <td>
+                            <input type="text" name="wpfm_settings[hub_license_key]"
+                                   value="<?php echo esc_attr( $settings['hub_license_key'] ?? '' ); ?>"
+                                   class="regular-text"
+                                   placeholder="WPFM-XXXX-XXXX-XXXX" />
+                            <p class="description"><?php _e( 'Enter your Pro license key. Free users can leave this empty.', 'wp-file-monitor' ); ?></p>
                         </td>
                     </tr>
                     <tr>
