@@ -157,6 +157,10 @@ class WPFM_Scanner {
             'suspicious' => $suspicious,
         ], false );
 
+        // ── Step 5: Determine change context ──
+        $legitimate_context = WPFM_Sentinel::get_legitimate_context();
+        $is_legitimate      = ! empty( $legitimate_context );
+
         // Append to scan log (keep last 100)
         $log   = get_option( 'wpfm_scan_log', [] );
         $entry = [
@@ -168,7 +172,13 @@ class WPFM_Scanner {
             'modified'   => count( $content_changes['modified_files'] ),
             'deleted'    => count( $content_changes['deleted_files'] ),
             'suspicious' => count( $suspicious ),
+            'context'    => $is_legitimate ? 'admin' : 'external',
         ];
+
+        // Add context reason to log
+        if ( $is_legitimate ) {
+            $entry['context_reason'] = implode( ', ', array_column( $legitimate_context, 'reason' ) );
+        }
 
         // Store file paths for "View Details" (limit 20 per category to keep size small)
         if ( $total_changes > 0 || count( $suspicious ) > 0 ) {
@@ -191,14 +201,36 @@ class WPFM_Scanner {
         }
         update_option( 'wpfm_scan_log', $log, false );
 
-        // Send alerts if changes detected or first run
-        if ( $total_changes > 0 || count( $suspicious ) > 0 || $is_first_run ) {
-            $notifier = new WPFM_Notifier();
-            $notifier->send( $result );
-        }
+        // ── Step 6: Context-aware alerting ──
+        // Add context to result
+        $result['is_legitimate'] = $is_legitimate;
+        $result['context']       = $legitimate_context ?: [];
 
-        // Send heartbeat to Hub API (if configured)
-        WPFM_Heartbeat::send( $result );
+        if ( $is_legitimate ) {
+            // Changes came from WordPress admin (plugin install/update/delete, theme switch)
+            // → Log as INFO, auto-baseline, do NOT send critical alert
+            WPFM_Sentinel::clear_legitimate();
+
+            // Still log for audit trail
+            $context_reasons = array_column( $legitimate_context, 'reason' );
+            error_log( '[WPFM] Legitimate change detected: ' . implode( ', ', $context_reasons ) );
+
+            // Send heartbeat to Hub (mark as legitimate)
+            $result['alert_level'] = 'info';
+            WPFM_Heartbeat::send( $result );
+        } else {
+            // No WordPress hook fired → changes are SUSPICIOUS
+            $result['alert_level'] = 'critical';
+
+            // Send alerts if changes detected or first run
+            if ( $total_changes > 0 || count( $suspicious ) > 0 || $is_first_run ) {
+                $notifier = new WPFM_Notifier();
+                $notifier->send( $result );
+            }
+
+            // Send heartbeat to Hub API (if configured)
+            WPFM_Heartbeat::send( $result );
+        }
 
         return $result;
     }

@@ -123,6 +123,30 @@
     font-weight: 600;
 }
 
+.wpfm-row--info td {
+    background: #f0f6fc !important;
+}
+
+/* Context Badges */
+.wpfm-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.wpfm-badge--ok {
+    background: #edfaef;
+    color: #00a32a;
+}
+
+.wpfm-badge--alert {
+    background: #fef0e7;
+    color: #d63638;
+}
+
 /* Settings */
 .wpfm-wrap .form-table th {
     width: 200px;

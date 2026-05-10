@@ -40,6 +40,14 @@ class WPFM_Sentinel {
     const THROTTLE_TTL = 300; // 5 minutes
 
     /**
+     * Transient key to mark legitimate WordPress-initiated changes.
+     * When this transient exists, the Scanner knows changes are expected
+     * and should auto-baseline instead of sending critical alerts.
+     */
+    const LEGITIMATE_KEY = 'wpfm_legitimate_change';
+    const LEGITIMATE_TTL = 600; // 10 minutes window
+
+    /**
      * Initialize hooks.
      */
     public static function init() {
@@ -50,6 +58,9 @@ class WPFM_Sentinel {
         add_action( 'deleted_plugin', [ __CLASS__, 'on_plugin_change' ] );
         add_action( 'switch_theme', [ __CLASS__, 'on_theme_change' ] );
 
+        // Track plugin/theme installs via WordPress admin
+        add_action( 'upgrader_process_complete', [ __CLASS__, 'on_install' ], 5, 2 );
+
         // Quick integrity check on admin page load (lightweight)
         if ( is_admin() ) {
             add_action( 'admin_init', [ __CLASS__, 'quick_check' ] );
@@ -57,30 +68,81 @@ class WPFM_Sentinel {
     }
 
     /**
-     * On plugin/theme upgrade — trigger immediate scan.
+     * Mark a change as legitimate (initiated through WordPress admin).
+     *
+     * @param string $reason Human-readable reason for the change.
+     */
+    private static function mark_legitimate( $reason ) {
+        $current = get_transient( self::LEGITIMATE_KEY );
+        if ( ! is_array( $current ) ) {
+            $current = [];
+        }
+
+        $current[] = [
+            'reason' => $reason,
+            'time'   => current_time( 'mysql' ),
+            'user'   => wp_get_current_user()->user_login ?? 'system',
+        ];
+
+        set_transient( self::LEGITIMATE_KEY, $current, self::LEGITIMATE_TTL );
+    }
+
+    /**
+     * Check if current changes are marked as legitimate.
+     *
+     * @return array|false Array of reasons if legitimate, false otherwise.
+     */
+    public static function get_legitimate_context() {
+        $context = get_transient( self::LEGITIMATE_KEY );
+        return is_array( $context ) && ! empty( $context ) ? $context : false;
+    }
+
+    /**
+     * Clear the legitimate change marker.
+     */
+    public static function clear_legitimate() {
+        delete_transient( self::LEGITIMATE_KEY );
+    }
+
+    /**
+     * On plugin/theme upgrade — mark legitimate + trigger scan.
      */
     public static function on_upgrade( $upgrader, $options ) {
         $type = $options['type'] ?? '';
         if ( in_array( $type, [ 'plugin', 'theme', 'core' ], true ) ) {
+            self::mark_legitimate( 'WordPress ' . $type . ' upgrade via admin' );
             self::trigger_scan( 'WordPress ' . $type . ' upgrade detected' );
         }
     }
 
     /**
-     * On plugin activate/deactivate/delete — trigger scan.
+     * On plugin/theme install — mark legitimate.
+     */
+    public static function on_install( $upgrader, $options ) {
+        $action = $options['action'] ?? '';
+        $type   = $options['type'] ?? '';
+        if ( 'install' === $action ) {
+            self::mark_legitimate( 'WordPress ' . $type . ' installed via admin' );
+        }
+    }
+
+    /**
+     * On plugin activate/deactivate/delete — mark legitimate + trigger scan.
      */
     public static function on_plugin_change( $plugin = '' ) {
         // Don't trigger for our own plugin
         if ( strpos( $plugin, 'wp-file-monitor' ) !== false ) {
             return;
         }
+        self::mark_legitimate( 'Plugin change: ' . basename( dirname( $plugin ) ) );
         self::trigger_scan( 'Plugin change: ' . $plugin );
     }
 
     /**
-     * On theme switch — trigger scan.
+     * On theme switch — mark legitimate + trigger scan.
      */
     public static function on_theme_change() {
+        self::mark_legitimate( 'Theme switch via admin' );
         self::trigger_scan( 'Theme switch detected' );
     }
 

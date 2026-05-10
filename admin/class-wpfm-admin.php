@@ -625,17 +625,21 @@ class WPFM_Admin {
                             <th><?php _e( 'Deleted', 'wp-file-monitor' ); ?></th>
                             <th><?php _e( 'Suspicious', 'wp-file-monitor' ); ?></th>
                             <th><?php _e( 'Total', 'wp-file-monitor' ); ?></th>
+                            <th><?php _e( 'Source', 'wp-file-monitor' ); ?></th>
                             <th></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php foreach ( array_reverse( $scan_log ) as $idx => $entry ) : ?>
                             <?php
-                            $row_class = '';
+                            $row_class   = '';
+                            $context     = $entry['context'] ?? 'external';
+                            $is_admin_change = ( 'admin' === $context );
+
                             if ( ( $entry['suspicious'] ?? 0 ) > 0 ) {
                                 $row_class = 'wpfm-row--danger';
                             } elseif ( ( $entry['changes'] ?? 0 ) > 0 ) {
-                                $row_class = 'wpfm-row--alert';
+                                $row_class = $is_admin_change ? 'wpfm-row--info' : 'wpfm-row--alert';
                             }
                             $has_details = ! empty( $entry['detail_files'] );
                             $total = $entry['changes'] ?? 0;
@@ -656,6 +660,19 @@ class WPFM_Admin {
                                 </td>
                                 <td><strong><?php echo esc_html( $total ); ?></strong></td>
                                 <td>
+                                    <?php if ( $is_admin_change ) : ?>
+                                        <span class="wpfm-badge wpfm-badge--ok" title="<?php echo esc_attr( $entry['context_reason'] ?? '' ); ?>">
+                                            <?php _e( '✅ Admin', 'wp-file-monitor' ); ?>
+                                        </span>
+                                    <?php elseif ( $total > 0 ) : ?>
+                                        <span class="wpfm-badge wpfm-badge--alert">
+                                            <?php _e( '⚠ External', 'wp-file-monitor' ); ?>
+                                        </span>
+                                    <?php else : ?>
+                                        <span class="wpfm-badge">—</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
                                     <?php if ( $has_details && $total > 0 ) : ?>
                                         <a href="#" class="wpfm-toggle-details" data-target="wpfm-detail-<?php echo intval( $idx ); ?>">
                                             <?php _e( 'View', 'wp-file-monitor' ); ?> ▾
@@ -665,7 +682,7 @@ class WPFM_Admin {
                             </tr>
                             <?php if ( $has_details && $total > 0 ) : ?>
                             <tr id="wpfm-detail-<?php echo intval( $idx ); ?>" class="wpfm-detail-row" style="display:none">
-                                <td colspan="9">
+                                <td colspan="10">
                                     <div class="wpfm-detail-content">
                                     <?php $df = $entry['detail_files']; ?>
                                     <?php if ( ! empty( $df['new'] ) ) : ?>
