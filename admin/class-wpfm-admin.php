@@ -245,7 +245,7 @@ class WPFM_Admin {
                 </div>
                 <div class="wpfm-card <?php echo esc_attr( $core_class ); ?>">
                     <div class="wpfm-card__label"><?php _e( 'Core Integrity', 'wp-file-monitor' ); ?></div>
-                    <div class="wpfm-card__value wpfm-card__value--sm"><?php echo $core_value; ?></div>
+                    <div class="wpfm-card__value wpfm-card__value--sm"><?php echo wp_kses( $core_value, [ 'span' => [ 'style' => [] ] ] ); ?></div>
                 </div>
                 <div class="wpfm-card">
                     <div class="wpfm-card__label"><?php _e( 'Last Scan', 'wp-file-monitor' ); ?></div>
@@ -647,14 +647,14 @@ class WPFM_Admin {
                                 <td><strong><?php echo esc_html( $total ); ?></strong></td>
                                 <td>
                                     <?php if ( $has_details && $total > 0 ) : ?>
-                                        <a href="#" class="wpfm-toggle-details" data-target="wpfm-detail-<?php echo $idx; ?>">
+                                        <a href="#" class="wpfm-toggle-details" data-target="wpfm-detail-<?php echo intval( $idx ); ?>">
                                             <?php _e( 'View', 'wp-file-monitor' ); ?> ▾
                                         </a>
                                     <?php endif; ?>
                                 </td>
                             </tr>
                             <?php if ( $has_details && $total > 0 ) : ?>
-                            <tr id="wpfm-detail-<?php echo $idx; ?>" class="wpfm-detail-row" style="display:none">
+                            <tr id="wpfm-detail-<?php echo intval( $idx ); ?>" class="wpfm-detail-row" style="display:none">
                                 <td colspan="9">
                                     <div class="wpfm-detail-content">
                                     <?php $df = $entry['detail_files']; ?>

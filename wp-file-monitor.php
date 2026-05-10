@@ -3,7 +3,7 @@
  * Plugin Name: WP File Monitor
  * Plugin URI:  https://wptopd3v.com/vibe-plugins/
  * Description: File integrity monitoring for WordPress — detects modified, new, and deleted files. Sends email & Telegram alerts.
- * Version:     1.1.0
+ * Version:     1.2.0
  * Author:      Duy Nguyen
  * Author URI:  https://wptopd3v.com
  * License:     GPLv2 or later
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants
-define( 'WPFM_VERSION', '1.1.0' );
+define( 'WPFM_VERSION', '1.2.0' );
 define( 'WPFM_FILE', __FILE__ );
 define( 'WPFM_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WPFM_URL', plugin_dir_url( __FILE__ ) );
@@ -29,6 +29,7 @@ require_once WPFM_DIR . 'includes/class-wpfm-core-verify.php';
 require_once WPFM_DIR . 'includes/class-wpfm-notifier.php';
 require_once WPFM_DIR . 'includes/class-wpfm-heartbeat.php';
 require_once WPFM_DIR . 'includes/class-wpfm-sentinel.php';
+require_once WPFM_DIR . 'includes/class-wpfm-self-check.php';
 require_once WPFM_DIR . 'includes/class-wpfm-cron.php';
 
 if ( is_admin() ) {
@@ -140,6 +141,12 @@ final class WP_File_Monitor {
                 return current_user_can( 'manage_options' );
             },
         ] );
+
+        register_rest_route( 'wpfm/v1', '/integrity', [
+            'methods'             => 'GET',
+            'callback'            => [ $this, 'rest_integrity' ],
+            'permission_callback' => [ $this, 'verify_integrity_request' ],
+        ] );
     }
 
     /**
@@ -165,6 +172,35 @@ final class WP_File_Monitor {
         $result  = $scanner->run();
 
         return rest_ensure_response( $result );
+    }
+
+    /**
+     * REST: Get plugin integrity hashes.
+     * Used by the Hub to verify plugin files haven't been tampered with.
+     */
+    public function rest_integrity() {
+        return rest_ensure_response( WPFM_Self_Check::get_integrity() );
+    }
+
+    /**
+     * Verify integrity request — either admin or valid site_key.
+     */
+    public function verify_integrity_request( $request ) {
+        // Admin can always access
+        if ( current_user_can( 'manage_options' ) ) {
+            return true;
+        }
+
+        // Hub can access with site_key
+        $site_key = $request->get_param( 'site_key' );
+        if ( empty( $site_key ) ) {
+            return false;
+        }
+
+        $settings       = get_option( 'wpfm_settings', [] );
+        $stored_key     = $settings['hub_site_key'] ?? '';
+
+        return ! empty( $stored_key ) && hash_equals( $stored_key, $site_key );
     }
 }
 
