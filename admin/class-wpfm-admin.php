@@ -278,7 +278,9 @@ class WPFM_Admin {
             <!-- Next scan info -->
             <?php if ( $next_scan ) : ?>
                 <p class="description" style="margin-bottom:16px">
-                    <?php printf(
+                    <?php
+                    /* translators: %s: date and time of next scheduled scan */
+                    printf(
                         __( 'Next scheduled scan: %s', 'wp-file-monitor' ),
                         '<strong>' . esc_html( date_i18n( 'Y-m-d H:i:s', $next_scan ) ) . '</strong>'
                     ); ?>
@@ -330,6 +332,7 @@ class WPFM_Admin {
                             <h4>🔒 <?php _e( 'Core Integrity Issues', 'wp-file-monitor' ); ?></h4>
 
                             <?php if ( ! empty( $core_modified ) ) : ?>
+                                <?php /* translators: %d: number of modified core files */ ?>
                                 <h5>⚠ <?php printf( __( 'Modified Core Files (%d)', 'wp-file-monitor' ), count( $core_modified ) ); ?></h5>
                                 <table class="widefat striped">
                                     <thead><tr><th><?php _e( 'File', 'wp-file-monitor' ); ?></th><th><?php _e( 'Expected Hash', 'wp-file-monitor' ); ?></th><th><?php _e( 'Actual Hash', 'wp-file-monitor' ); ?></th></tr></thead>
@@ -346,6 +349,7 @@ class WPFM_Admin {
                             <?php endif; ?>
 
                             <?php if ( ! empty( $core_unknown ) ) : ?>
+                                <?php /* translators: %d: number of unknown files found in core directories */ ?>
                                 <h5>🆕 <?php printf( __( 'Unknown Files in Core Directories (%d)', 'wp-file-monitor' ), count( $core_unknown ) ); ?></h5>
                                 <table class="widefat striped">
                                     <thead><tr><th><?php _e( 'File', 'wp-file-monitor' ); ?></th><th><?php _e( 'Size', 'wp-file-monitor' ); ?></th><th><?php _e( 'Modified', 'wp-file-monitor' ); ?></th></tr></thead>
@@ -362,6 +366,7 @@ class WPFM_Admin {
                             <?php endif; ?>
 
                             <?php if ( ! empty( $core_missing ) ) : ?>
+                                <?php /* translators: %d: number of missing core files */ ?>
                                 <h5>🗑 <?php printf( __( 'Missing Core Files (%d)', 'wp-file-monitor' ), count( $core_missing ) ); ?></h5>
                                 <ul>
                                     <?php foreach ( $core_missing as $f ) : ?>
@@ -371,6 +376,7 @@ class WPFM_Admin {
                             <?php endif; ?>
                         </div>
                     <?php else : ?>
+                        <?php /* translators: %d: number of verified PHP core files */ ?>
                         <p class="wpfm-detail-ok">🔒 <?php printf( __( 'Core: ✅ %d PHP files verified — all intact', 'wp-file-monitor' ), $core_verified ); ?></p>
                     <?php endif; ?>
                 <?php elseif ( $core_detail['api_error'] ?? false ) : ?>
@@ -383,6 +389,7 @@ class WPFM_Admin {
                         <h4>📁 <?php _e( 'wp-content Changes', 'wp-file-monitor' ); ?></h4>
 
                         <?php if ( ! empty( $new_files ) ) : ?>
+                            <?php /* translators: %d: number of new files detected */ ?>
                             <h5>🆕 <?php printf( __( 'New Files (%d)', 'wp-file-monitor' ), count( $new_files ) ); ?></h5>
                             <table class="widefat striped">
                                 <thead><tr><th><?php _e( 'File', 'wp-file-monitor' ); ?></th><th><?php _e( 'Size', 'wp-file-monitor' ); ?></th></tr></thead>
@@ -398,6 +405,7 @@ class WPFM_Admin {
                         <?php endif; ?>
 
                         <?php if ( ! empty( $mod_files ) ) : ?>
+                            <?php /* translators: %d: number of modified files */ ?>
                             <h5>✏️ <?php printf( __( 'Modified Files (%d)', 'wp-file-monitor' ), count( $mod_files ) ); ?></h5>
                             <table class="widefat striped">
                                 <thead><tr><th><?php _e( 'File', 'wp-file-monitor' ); ?></th><th><?php _e( 'Before', 'wp-file-monitor' ); ?></th><th><?php _e( 'After', 'wp-file-monitor' ); ?></th></tr></thead>
@@ -414,6 +422,7 @@ class WPFM_Admin {
                         <?php endif; ?>
 
                         <?php if ( ! empty( $del_files ) ) : ?>
+                            <?php /* translators: %d: number of deleted files */ ?>
                             <h5>🗑 <?php printf( __( 'Deleted Files (%d)', 'wp-file-monitor' ), count( $del_files ) ); ?></h5>
                             <ul>
                                 <?php foreach ( $del_files as $f ) : ?>
@@ -429,6 +438,7 @@ class WPFM_Admin {
                 <?php // ── Suspicious Patterns ── ?>
                 <?php if ( ! empty( $suspicious_detail ) ) : ?>
                     <div class="wpfm-detail-section wpfm-detail-section--danger">
+                        <?php /* translators: %d: number of files with suspicious patterns */ ?>
                         <h4>🚨 <?php printf( __( 'Suspicious Patterns (%d files)', 'wp-file-monitor' ), count( $suspicious_detail ) ); ?></h4>
                         <table class="widefat striped">
                             <thead><tr><th><?php _e( 'File', 'wp-file-monitor' ); ?></th><th><?php _e( 'Patterns Found', 'wp-file-monitor' ); ?></th></tr></thead>

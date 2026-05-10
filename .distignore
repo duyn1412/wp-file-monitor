@@ -1,0 +1,17 @@
+# Directories
+.git
+.github
+node_modules
+vendor
+
+# Files
+.gitignore
+.distignore
+.editorconfig
+README.md
+composer.json
+composer.lock
+package.json
+package-lock.json
+phpcs.xml
+phpunit.xml
